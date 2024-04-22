@@ -36,7 +36,9 @@ namespace ComputerNets1
 
         public List<Task> OutStream { get; set; }
 
-        public Task? CurrentTask { get; set; }
+        public ServerCore Core1 { get; set; }
+
+        public ServerCore Core2 { get; set; }
 
         public bool Type { get;set; }
 
@@ -76,7 +78,8 @@ namespace ComputerNets1
             Q = new List<Task>();
             InStream = new List<Task>();
             OutStream = new List<Task>();
-            CurrentTask = null;
+            Core1 = new ServerCore();
+            Core2 = new ServerCore();
             K = false;
             L = 0;
             Type = false;
@@ -132,8 +135,9 @@ namespace ComputerNets1
             NextSigma = initSigma;
             T2 = T1 + initSigma;
             TS = T1;
-            CurrentTask = new Task(0, T1, T1, initSigma, T2);
-            InStream.Add(CurrentTask);
+            Core1.Task = new Task(0, T1, T1, initSigma, T2);
+            Core1.IsBusy = true;
+            InStream.Add(Core1.Task);
 
             ServerLog serverLog = new ServerLog((Type == true ? "2" : "1"), T1.ToString(), initSigma.ToString(), T1.ToString(), T2.ToString(), (K == true ? "1" : "0"), L.ToString(), TS.ToString(), "Инициализация");
             ServerLogs.Add(serverLog);
@@ -152,7 +156,7 @@ namespace ComputerNets1
             if (Type) // Окончание обслуживания
             {
                 double sigma = GenerateModuleGaussDistribution();
-                K = L == 0 ? false : K;
+                K = Core1.IsBusy || Core2.IsBusy;
                 HandleTask(sigma);
 
 /*                if (CurrentTask.I == 0)
@@ -212,16 +216,18 @@ namespace ComputerNets1
 
                     if (K)
                     {
-                        if (L < Q_MAX)
-                        {
-                            Q.Add(newTask);
-                            L += 1;
-                            QueueLengthCounts[L]++;
-                        }
+                        if(!DelegateTaskToCore(newTask))
+                            if (L < Q_MAX)
+                            {
+                                Q.Add(newTask);
+                                L += 1;
+                                QueueLengthCounts[L]++;
+                            }
                     }
                     else
                     {
-                        CurrentTask = newTask;
+                        Core1.Task = newTask;
+                        Core1.IsBusy = true;
                         K = true;
                     }
                 }
@@ -266,22 +272,37 @@ namespace ComputerNets1
 
         public void HandleTask(double sigma)
         {
-            CurrentTask.Sigma = NextSigma;
-            CurrentTask.Delta = T2 - PrevT2;
-            UpdateDeltaCounts(CurrentTask.Delta.Value);
+            // Вариант через сравнение времени выхода задачи с системным временем
+            //ServerCore core;
+            //if (Core1.IsBusy && Core2.IsBusy)
+            //    core = (Math.Abs(Core1.Task.T + NextSigma - TS) < 1e-5) ? Core1 : Core2;
+            //else
+            //    core = Core1.IsBusy ? Core1 : Core2;
+
+            // Вариант через порядковый номер задачи
+            ServerCore core;
+            if (Core1.IsBusy && Core2.IsBusy)
+                core = Core1.Task.I < Core2.Task.I ? Core1 : Core2;
+            else
+                core = Core1.IsBusy ? Core1 : Core2;
+
+            core.Task.Sigma = NextSigma;
+            core.Task.Delta = T2 - PrevT2;
+            UpdateDeltaCounts(core.Task.Delta.Value);
             PrevT2 = T2;
             NextSigma = sigma;
-            OutStream.Add(CurrentTask);
+            core.IsBusy = false;
+            OutStream.Add(core.Task);
 
             if (L == 0)
             {
                 T2 = T1 + sigma;
-                CurrentTask = null;
+                core.Task = null;
             }
             else
             {
                 int indexOfHighPriorityTask = GetIndexOfHighPriorityTask(Q);
-                CurrentTask = Q[indexOfHighPriorityTask];
+                core.Task = Q[indexOfHighPriorityTask];
                 // CurrentTask.Sigma = sigma;
                 Q.RemoveAt(indexOfHighPriorityTask);
                 L -= 1;
@@ -289,17 +310,17 @@ namespace ComputerNets1
                 T2 += sigma;
             }
 
-/*            CurrentTask.Sigma = NextSigma;
-            CurrentTask.Delta = T2 - PrevT2;
-            PrevT2 = T2;
-            NextSigma = sigma;
-            OutStream.Add(CurrentTask);
-            int indexOfHighPriorityTask = GetIndexOfHighPriorityTask(Q);
-            CurrentTask = Q[indexOfHighPriorityTask]; // Проверить CurrentTask на null после удаления задачи из очереди
-            // CurrentTask.Sigma = sigma;
-            Q.RemoveAt(indexOfHighPriorityTask);
-            L -= 1;
-            T2 += sigma;*/
+            /*            CurrentTask.Sigma = NextSigma;
+                        CurrentTask.Delta = T2 - PrevT2;
+                        PrevT2 = T2;
+                        NextSigma = sigma;
+                        OutStream.Add(CurrentTask);
+                        int indexOfHighPriorityTask = GetIndexOfHighPriorityTask(Q);
+                        CurrentTask = Q[indexOfHighPriorityTask]; // Проверить CurrentTask на null после удаления задачи из очереди
+                        // CurrentTask.Sigma = sigma;
+                        Q.RemoveAt(indexOfHighPriorityTask);
+                        L -= 1;
+                        T2 += sigma;*/
         }
 
         public void UpdateDeltaCounts(double delta)
@@ -308,6 +329,21 @@ namespace ComputerNets1
             double fractionalPart = delta - integerPart;
 
             DeltaCounts[integerPart]++;
+        }
+
+        public bool DelegateTaskToCore(Task newTask)
+        {
+            bool isDelegated = false;
+            ServerCore? core = !Core1.IsBusy ? Core1 : !Core2.IsBusy ? Core2 : null;
+
+            if (core != null)
+            {
+                core.Task = newTask;
+                core.IsBusy = true;
+                isDelegated = true;
+            }
+
+            return isDelegated;
         }
     }
 
@@ -339,6 +375,24 @@ namespace ComputerNets1
             this.Tau = Tau;
             this.Sigma = Sigma;
             this.Delta = Delta;
+        }
+    }
+
+    public class ServerCore
+    {
+        public Task? Task { get; set; }
+        public bool IsBusy { get; set; }
+
+        public ServerCore()
+        {
+            Task = null;
+            IsBusy = false;
+        }
+
+        public ServerCore(Task task)
+        {
+            Task = task;
+            IsBusy = true;
         }
     }
 

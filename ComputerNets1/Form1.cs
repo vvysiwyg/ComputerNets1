@@ -14,13 +14,15 @@ namespace ComputerNets1
         string outStreamPath = @"C:\Users\Uzer\Desktop\OutStream.txt";
         string queueLengthCounts_TS1000Path = @"C:\Users\Uzer\Desktop\QueueLengthCounts_TS1000.txt";
         string deltaCounts_TS1000Path = @"C:\Users\Uzer\Desktop\DeltaCounts_TS1000.txt";
+        ServerCore testCore;
 
         public Form1()
         {
             InitializeComponent();
             random = new Random();
             normalRandom = new NormalRandom();
-            resultVisualisation = new ResultVisualisation(this); // Проверить Form на null внутри resultVisualisation
+            resultVisualisation = new ResultVisualisation(this);
+            testCore = new ServerCore();
         }
 
         private void button1_Click(object sender, EventArgs e)
@@ -30,7 +32,7 @@ namespace ComputerNets1
 
             dataGridView1.Rows.Clear();
 
-            foreach(var log in server.ServerLogs)
+            foreach (var log in server.ServerLogs)
             {
                 dataGridView1.Rows.Add(log.Type, log.Tau, log.Sigma, log.T1, log.T2, log.K, log.L, log.TS, log.Description);
             }
@@ -56,7 +58,7 @@ namespace ComputerNets1
                 string line;
                 int count;
 
-                for(int i = 0; i < server.QueueLengthCounts.Keys.Count; i++)
+                for (int i = 0; i < server.QueueLengthCounts.Keys.Count; i++)
                 {
                     line = reader.ReadLine();
                     if (int.TryParse(line, out count))
