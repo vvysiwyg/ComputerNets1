@@ -124,7 +124,15 @@ namespace ComputerNets1
                 {12, 0},
                 {13, 0},
                 {14, 0},
-                {15, 0}
+                {15, 0},
+                {16, 0},
+                {17, 0},
+                {18, 0},
+                {19, 0},
+                {20, 0},
+                {21, 0},
+                {22, 0},
+                {23, 0}
             };
         }
 
@@ -159,42 +167,6 @@ namespace ComputerNets1
                 K = Core1.IsBusy || Core2.IsBusy;
                 HandleTask(sigma);
 
-/*                if (CurrentTask.I == 0)
-                {
-                    if (L == 0)
-                    {
-                        K = false;
-                        HandleTask(sigma);
-                        //T2 = T1 + sigma;
-                        //NextSigma = sigma;
-                        //OutStream.Add(CurrentTask);
-                        //CurrentTask = null;
-                    }
-                    else
-                    {
-                        HandleTask(sigma);
-                    }
-                }
-                else
-                {
-                    if (L == 0)
-                    {
-                        K = false;
-                        HandleTask(sigma);
-                        //CurrentTask.Sigma = NextSigma;
-                        //CurrentTask.Delta = T2 - PrevT2;
-                        //PrevT2 = T2;
-                        //NextSigma = sigma;
-                        //OutStream.Add(CurrentTask);
-                        //T2 = T1 + sigma;
-                        //CurrentTask = null;
-                    }
-                    else
-                    {
-                        HandleTask(sigma);
-                    }
-                }*/
-
                 serverLog.Sigma = sigma.ToString();
                 serverLog.T2 = T2.ToString();
                 serverLog.Description = "Окончание обслуживания";
@@ -217,7 +189,7 @@ namespace ComputerNets1
                     if (K)
                     {
                         if(!DelegateTaskToCore(newTask))
-                            if (L < Q_MAX)
+                            if (L <= Q_MAX)
                             {
                                 Q.Add(newTask);
                                 L += 1;
@@ -272,14 +244,6 @@ namespace ComputerNets1
 
         public void HandleTask(double sigma)
         {
-            // Вариант через сравнение времени выхода задачи с системным временем
-            //ServerCore core;
-            //if (Core1.IsBusy && Core2.IsBusy)
-            //    core = (Math.Abs(Core1.Task.T + NextSigma - TS) < 1e-5) ? Core1 : Core2;
-            //else
-            //    core = Core1.IsBusy ? Core1 : Core2;
-
-            // Вариант через порядковый номер задачи
             ServerCore core;
             if (Core1.IsBusy && Core2.IsBusy)
                 core = Core1.Task.I < Core2.Task.I ? Core1 : Core2;
@@ -303,24 +267,11 @@ namespace ComputerNets1
             {
                 int indexOfHighPriorityTask = GetIndexOfHighPriorityTask(Q);
                 core.Task = Q[indexOfHighPriorityTask];
-                // CurrentTask.Sigma = sigma;
                 Q.RemoveAt(indexOfHighPriorityTask);
                 L -= 1;
                 QueueLengthCounts[L]++;
                 T2 += sigma;
             }
-
-            /*            CurrentTask.Sigma = NextSigma;
-                        CurrentTask.Delta = T2 - PrevT2;
-                        PrevT2 = T2;
-                        NextSigma = sigma;
-                        OutStream.Add(CurrentTask);
-                        int indexOfHighPriorityTask = GetIndexOfHighPriorityTask(Q);
-                        CurrentTask = Q[indexOfHighPriorityTask]; // Проверить CurrentTask на null после удаления задачи из очереди
-                        // CurrentTask.Sigma = sigma;
-                        Q.RemoveAt(indexOfHighPriorityTask);
-                        L -= 1;
-                        T2 += sigma;*/
         }
 
         public void UpdateDeltaCounts(double delta)

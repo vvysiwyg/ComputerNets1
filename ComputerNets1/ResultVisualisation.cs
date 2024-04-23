@@ -10,51 +10,71 @@ namespace ComputerNets1
     public class ResultVisualisation
     {
         private Form Form { get;set; }
-        private Series QueueLengthSeries { get; set; }
-        private Series DeltaSeries { get; set; }
+        private Chart QueueLengthChart { get; set; }
+        private Chart DeltaChart { get; set; }
+
+        private Dictionary<double, Series> LnSeries { get; set; }
+
+        private Dictionary<double, Series> AOutXSeries { get; set; }
 
         public ResultVisualisation() 
         {
             Form = new Form();
-            QueueLengthSeries = new Series();
-            DeltaSeries = new Series();
+            LnSeries = new Dictionary<double, Series>();
+            AOutXSeries = new Dictionary<double, Series>();
         }
 
         public ResultVisualisation(Form Form) 
         {
             this.Form = Form;
 
-            Chart queueLengthChart = new Chart();
+            LnSeries = new Dictionary<double, Series>();
+            AOutXSeries = new Dictionary<double, Series>();
+
+            QueueLengthChart = new Chart();
             ChartArea queueLengthChartArea = new ChartArea();
-            queueLengthChart.ChartAreas.Add(queueLengthChartArea);
+            QueueLengthChart.ChartAreas.Add(queueLengthChartArea);
 
-            Chart deltaChart = new Chart();
+            DeltaChart = new Chart();
             ChartArea deltaChartArea = new ChartArea();
-            deltaChart.ChartAreas.Add(deltaChartArea);
+            DeltaChart.ChartAreas.Add(deltaChartArea);
 
-            QueueLengthSeries = new Series();
-            QueueLengthSeries.ChartType = SeriesChartType.Line;
-            queueLengthChart.Series.Add(QueueLengthSeries);
-
-            DeltaSeries = new Series();
-            DeltaSeries.ChartType = SeriesChartType.Line;
-            deltaChart.Series.Add(DeltaSeries);
-
-            queueLengthChart.Dock = DockStyle.Fill;
-            deltaChart.Dock = DockStyle.Fill;
+            QueueLengthChart.Dock = DockStyle.Fill;
+            DeltaChart.Dock = DockStyle.Fill;
 
             TabPage queueLengthTabPage = this.Form.Controls.Find("tabPage2", true)[0] as TabPage;
             TabPage deltaTabPage = this.Form.Controls.Find("tabPage3", true)[0] as TabPage;
-            queueLengthTabPage.Controls.Add(queueLengthChart);
-            deltaTabPage.Controls.Add(deltaChart);
+            queueLengthTabPage.Controls.Add(QueueLengthChart);
+            deltaTabPage.Controls.Add(DeltaChart);
         }
 
-        public void Visualize(Dictionary<int, int> queueLengthCounts, Dictionary<int, int> deltaCounts)
+        public void Visualize(Dictionary<int, int> queueLengthCounts, Dictionary<int, int> deltaCounts, double expectation)
         {
+            Series QueueLengthSeries, DeltaSeries;
             List<double> queueLengthProbabilities = CalculateQueueLengthProbabilities(queueLengthCounts);
             List<double> deltaProbabilities = CalculateDeltaProbabilities(deltaCounts);
             List<double> queueLengthCumulativeProbabilities = new List<double>();
             List<double> deltaCumulativeProbabilities = new List<double>();
+
+            if (!LnSeries.TryGetValue(expectation, out QueueLengthSeries))
+            {
+                QueueLengthSeries = new Series();
+                QueueLengthSeries.Name = $"μ = {expectation}";
+                QueueLengthSeries.ChartType = SeriesChartType.Line;
+                QueueLengthChart.Series.Add(QueueLengthSeries);
+                QueueLengthChart.Legends.Add(expectation.ToString());
+                LnSeries.Add(expectation, QueueLengthSeries);
+            }
+
+            if (!AOutXSeries.TryGetValue(expectation, out DeltaSeries))
+            {
+                DeltaSeries = new Series();
+                DeltaSeries.Name = $"μ = {expectation}";
+                DeltaSeries.ChartType = SeriesChartType.Line;
+                DeltaChart.Series.Add(DeltaSeries);
+                Legend legend = DeltaChart.Legends.Add(expectation.ToString());
+                AOutXSeries.Add(expectation, DeltaSeries);
+            }
 
             queueLengthCumulativeProbabilities.Add(queueLengthProbabilities[0]);
             deltaCumulativeProbabilities.Add(deltaProbabilities[0]);

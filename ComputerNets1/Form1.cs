@@ -1,40 +1,120 @@
 using System.Windows.Forms.DataVisualization.Charting;
+using static System.Windows.Forms.LinkLabel;
 
 namespace ComputerNets1
 {
     public partial class Form1 : Form
     {
-        private static Random random;
-        private static NormalRandom normalRandom;
         private Server server;
         private ResultVisualisation resultVisualisation;
-        string filePath = @"C:\Users\Uzer\Desktop\Test.txt";
-        string logPath = @"C:\Users\Uzer\Desktop\log.txt";
+        public Dictionary<int, int> QueueLengthCounts;
+        public Dictionary<int, int> DeltaCounts;
+        double a, b, expectation, deviation, TSMax; // 0.1, 7, 4, 1.3, 1000
+        int experimentCount;
         string inStreamPath = @"C:\Users\Uzer\Desktop\InStream.txt";
         string outStreamPath = @"C:\Users\Uzer\Desktop\OutStream.txt";
         string queueLengthCounts_TS1000Path = @"C:\Users\Uzer\Desktop\QueueLengthCounts_TS1000.txt";
         string deltaCounts_TS1000Path = @"C:\Users\Uzer\Desktop\DeltaCounts_TS1000.txt";
-        ServerCore testCore;
 
         public Form1()
         {
             InitializeComponent();
-            random = new Random();
-            normalRandom = new NormalRandom();
             resultVisualisation = new ResultVisualisation(this);
-            testCore = new ServerCore();
+            QueueLengthCounts = new Dictionary<int, int>()
+            {
+                {0, 1},
+                {1, 0},
+                {2, 0},
+                {3, 0},
+                {4, 0},
+                {5, 0},
+                {6, 0},
+                {7, 0},
+                {8, 0},
+                {9, 0},
+                {10, 0},
+                {11, 0},
+                {12, 0},
+                {13, 0},
+                {14, 0},
+                {15, 0}
+            };
+            DeltaCounts = new Dictionary<int, int>()
+            {
+                {0, 0},
+                {1, 0},
+                {2, 0},
+                {3, 0},
+                {4, 0},
+                {5, 0},
+                {6, 0},
+                {7, 0},
+                {8, 0},
+                {9, 0},
+                {10, 0},
+                {11, 0},
+                {12, 0},
+                {13, 0},
+                {14, 0},
+                {15, 0},
+                {16, 0},
+                {17, 0},
+                {18, 0},
+                {19, 0},
+                {20, 0},
+                {21, 0},
+                {22, 0},
+                {23, 0}
+            };
         }
 
         private void button1_Click(object sender, EventArgs e)
         {
-            server = new Server(0.1, 7, 1.3, 4, 1000);
-            server.RunServer();
-
-            dataGridView1.Rows.Clear();
-
-            foreach (var log in server.ServerLogs)
+            if(double.TryParse(aTextBox.Text, out a) &&
+                double.TryParse(bTextBox.Text, out b) &&
+                double.TryParse(expectationTextBox.Text, out expectation) &&
+                double.TryParse(deviationTextBox.Text, out deviation) &&
+                double.TryParse(tsMaxTextBox.Text, out TSMax) &&
+                int.TryParse(experimentCountTextBox.Text, out experimentCount))
             {
-                dataGridView1.Rows.Add(log.Type, log.Tau, log.Sigma, log.T1, log.T2, log.K, log.L, log.TS, log.Description);
+                ClearDictionaries();
+                try
+                {
+                    for (int i = 0; i < experimentCount; i++)
+                    {
+                        server = new Server(a, b, deviation, expectation, TSMax);
+                        server.RunServer();
+
+                        for (int j = 0; j < server.QueueLengthCounts.Keys.Count; j++)
+                        {
+                            QueueLengthCounts[j] += server.QueueLengthCounts[j];
+                        }
+
+                        for (int j = 0; j < server.DeltaCounts.Keys.Count; j++)
+                        {
+                            DeltaCounts[j] += server.DeltaCounts[j];
+                        }
+                    }
+
+                    MessageBox.Show($"Эксперименты прошли успешно");
+                }
+                catch(Exception ex)
+                {
+                    MessageBox.Show($"Во время выполнения экмпериментов произошла ошибка: {ex.Message}");
+                    return;
+                }
+
+                dataGridView1.Rows.Clear();
+
+                foreach (var log in server.ServerLogs)
+                {
+                    dataGridView1.Rows.Add(log.Type, log.Tau, log.Sigma, log.T1, log.T2, log.K, log.L, log.TS, log.Description);
+                }
+            }
+            else
+            {
+                MessageBox.Show("Заполнены не все поля");
+                return;
             }
 
             using (StreamWriter sw = new StreamWriter(inStreamPath, false))
@@ -79,8 +159,6 @@ namespace ComputerNets1
                 }
             }
 
-            resultVisualisation.Visualize(server.QueueLengthCounts, server.DeltaCounts);
-
             using (StreamWriter sw = new StreamWriter(queueLengthCounts_TS1000Path, false))
             {
                 foreach (var item in server.QueueLengthCounts)
@@ -96,168 +174,24 @@ namespace ComputerNets1
                     sw.WriteLine(item.Value);
                 }
             }
-
-            //queue = PopulateQueue(4);
-            //int index = server.GetIndexOfHighPriorityTask(queue);
-
-            //using (StreamWriter sw = new StreamWriter(logPath, false))
-            //{
-            //    foreach (var item in queue)
-            //    {
-            //        sw.WriteLine($"{item.I} sigma = {item.Sigma}");
-            //    }
-            //    sw.WriteLine($"Max index = {index}");
-            //}
         }
 
-        public List<Task> PopulateQueue(int iterationsCount)
+        private void buildChartsBtn_Click(object sender, EventArgs e)
         {
-            List<Task> queue = new List<Task>();
-
-            for(int i = 0; i < iterationsCount; i++)
-                queue.Add(new Task(i, i + 1, 0.1 + random.NextDouble() * (7 - 0.1), Math.Abs(normalRandom.NextDouble() * 1.3 + 4), null));
-
-            return queue;
+            resultVisualisation.Visualize(QueueLengthCounts, DeltaCounts, expectation);
         }
 
-        public void GenerateModuleGaussDistribution()
+        private void ClearDictionaries()
         {
-            double result = 0;
-            int i = 100;
-            double deviation = 1.3, expectation = 4;
-            Dictionary<int, int> distribution = new Dictionary<int, int>()
+            for (int j = 0; j < QueueLengthCounts.Keys.Count; j++)
             {
-                {0, 0},
-                {1, 0},
-                {2, 0},
-                {3, 0},
-                {4, 0}
-            };
-            List<double> otherNumbers = new List<double>();
-
-            while (i > 0)
-            {
-                result = normalRandom.NextDouble();
-
-                //if (result >= 11 && result < 15)
-                //    distribution[0]++;
-                //else if (result >= 15 && result < 19)
-                //    distribution[1]++;
-                //else if (result >= 19 && result < 23)
-                //    distribution[2]++;
-                //else if (result >= 23 && result < 27)
-                //    distribution[3]++;
-                //else if (result >= 27 && result <= 30)
-                //    distribution[4]++;
-                //else
-                //    otherNumbers.Add(result);
-
-                otherNumbers.Add(Math.Abs(result * deviation + expectation));
-
-                i--;
+                QueueLengthCounts[j] = 0;
             }
 
-            //using (StreamWriter sw = new StreamWriter(filePath, false))
-            //{
-            //    foreach (int key in distribution.Keys)
-            //    {
-            //        sw.WriteLine($"{key} - {distribution[key]}");
-            //    }
-            //}
-
-            using (StreamWriter sw = new StreamWriter(logPath, false))
+            for (int j = 0; j < DeltaCounts.Keys.Count; j++)
             {
-                foreach (double item in otherNumbers)
-                {
-                    sw.WriteLine(item);
-                }
-            }
-        }
-
-        public void GenerateUniformDistribution() 
-        {
-            double a, b;
-            double result = 0;
-            int i = 10000;
-            Dictionary<int, int> distribution = new Dictionary<int, int>()
-            {
-                {0, 0},
-                {1, 0},
-                {2, 0},
-                {3, 0},
-                {4, 0}
-            };
-            List<double> otherNumbers = new List<double>();
-
-            double.TryParse(textBox1.Text, out a);
-            double.TryParse(textBox2.Text, out b);
-
-            while (i > 0)
-            {
-                result = a + random.NextDouble() * (b - a);
-
-                if (result >= 11 && result < 15)
-                    distribution[0]++;
-                else if (result >= 15 && result < 19)
-                    distribution[1]++;
-                else if (result >= 19 && result < 23)
-                    distribution[2]++;
-                else if (result >= 23 && result < 27)
-                    distribution[3]++;
-                else if (result >= 27 && result <= 30)
-                    distribution[4]++;
-                else
-                    otherNumbers.Add(result);
-
-                i--;
-            }
-
-            using (StreamWriter sw = new StreamWriter(filePath, false))
-            {
-                foreach (int key in distribution.Keys)
-                {
-                    sw.WriteLine($"{key} - {distribution[key]}");
-                }
-            }
-
-            using (StreamWriter sw = new StreamWriter(logPath, false))
-            {
-                foreach (double item in otherNumbers)
-                {
-                    sw.WriteLine(item);
-                }
+                DeltaCounts[j] = 0;
             }
         }
     }
-
-    //public class NormalRandom : Random
-    //{
-    //    // сохранённое предыдущее значение
-    //    double prevSample = double.NaN;
-    //    protected override double Sample()
-    //    {
-    //        // есть предыдущее значение? возвращаем его
-    //        if (!double.IsNaN(prevSample))
-    //        {
-    //            double result = prevSample;
-    //            prevSample = double.NaN;
-    //            return result;
-    //        }
-
-    //        // нет? вычисляем следующие два
-    //        // Marsaglia polar method из википедии
-    //        double u, v, s;
-    //        do
-    //        {
-    //            u = 2 * base.Sample() - 1;
-    //            v = 2 * base.Sample() - 1; // [-1, 1)
-    //            s = u * u + v * v;
-    //        }
-    //        while (u <= -1 || v <= -1 || s >= 1 || s == 0);
-    //        double r = Math.Sqrt(-2 * Math.Log(s) / s);
-
-    //        prevSample = r * v;
-    //        return r * u;
-    //    }
-    //}
 }
