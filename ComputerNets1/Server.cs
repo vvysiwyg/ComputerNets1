@@ -1,11 +1,4 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Runtime.InteropServices.Marshalling;
-using System.Text;
-using System.Threading.Tasks;
-using System.Transactions;
-
+﻿
 namespace ComputerNets1
 {
     public class Server
@@ -25,7 +18,7 @@ namespace ComputerNets1
         public double TS { get; set; }
 
         public double TSMax { get; set; }
-
+            
         public double T1 { get; set; }
 
         public double T2 { get; set; }
@@ -277,8 +270,6 @@ namespace ComputerNets1
         public void UpdateDeltaCounts(double delta)
         {
             int integerPart = (int)Math.Truncate(delta);
-            double fractionalPart = delta - integerPart;
-
             DeltaCounts[integerPart]++;
         }
 
