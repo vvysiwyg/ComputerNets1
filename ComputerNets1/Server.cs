@@ -1,4 +1,6 @@
-﻿
+﻿using MathNet.Numerics;
+using MathNet.Numerics.Distributions;
+
 namespace ComputerNets1
 {
     public class Server
@@ -7,6 +9,8 @@ namespace ComputerNets1
         private static NormalRandom _normalRandom;
         private const int Q_MAX = 15;
 
+        public int ServerID { get; private set; }
+
         public double a {  get; set; }
 
         public double b { get; set; }
@@ -14,6 +18,8 @@ namespace ComputerNets1
         public double Deviation { get; set; }
 
         public double Expectation { get; set; }
+
+        public double Lambda { get; set; }
 
         public double TS { get; set; }
 
@@ -29,6 +35,8 @@ namespace ComputerNets1
 
         public List<Task> OutStream { get; set; }
 
+        public List<Task> FinalOutStream { get; set; }
+
         public ServerCore Core1 { get; set; }
 
         public ServerCore Core2 { get; set; }
@@ -36,6 +44,8 @@ namespace ComputerNets1
         public bool Type { get;set; }
 
         public bool K { get; set; }
+
+        public bool IsShutdown { get; set; }
 
         public int L { get; set; }
 
@@ -47,16 +57,25 @@ namespace ComputerNets1
 
         public double PrevT2 { get; set; }
 
+        public double Intensity { get; set; }
+
         public List<ServerLog> ServerLogs { get; set; }
         
         public Dictionary<int, int> QueueLengthCounts { get; set; }
 
         public Dictionary<int, int> DeltaCounts { get; set; }
 
-        public Server(double a, double b, double deviation, double expectation, double TSMax)
+        public List<Server> NeighborServers { get; set; }
+
+        public Server(double a, double b, double deviation, double expectation, double TSMax, int serverId, double lambda)
         {
             _random = new Random();
             _normalRandom = new NormalRandom();
+            NeighborServers = new List<Server>();
+            ServerID = serverId;
+            IsShutdown = false;
+            Lambda = lambda;
+            Intensity = 0.0;
 
             this.a = a;
             this.b = b;
@@ -71,6 +90,7 @@ namespace ComputerNets1
             Q = new List<Task>();
             InStream = new List<Task>();
             OutStream = new List<Task>();
+            FinalOutStream = new List<Task>();
             Core1 = new ServerCore();
             Core2 = new ServerCore();
             K = false;
@@ -127,91 +147,228 @@ namespace ComputerNets1
                 {22, 0},
                 {23, 0}
             };
+
+            InitializeFirstTask();
         }
 
-        public void RunServer()
+        public void InitializeFirstTask()
         {
             T1 = GenerateUniformDistribution();
             double initSigma = GenerateModuleGaussDistribution();
             NextSigma = initSigma;
             T2 = T1 + initSigma;
             TS = T1;
-            Core1.Task = new Task(0, T1, T1, initSigma, T2);
+            Core1.Task = new Task(0, T1, T1, initSigma, T2, Poisson.Sample(_random, Lambda), 0);
             Core1.IsBusy = true;
             InStream.Add(Core1.Task);
 
             ServerLog serverLog = new ServerLog((Type == true ? "2" : "1"), T1.ToString(), initSigma.ToString(), T1.ToString(), T2.ToString(), (K == true ? "1" : "0"), L.ToString(), TS.ToString(), "Инициализация");
             ServerLogs.Add(serverLog);
-
-            while(TS < TSMax)
-            {
-                ProcessTimeStep();
-            }
         }
 
         public void ProcessTimeStep()
         {
-            ServerLog serverLog = new ServerLog();
-            serverLog.Type = (Type == true ? "2" : "1");
-
-            if (Type) // Окончание обслуживания
+            if (!IsShutdown)
             {
-                double sigma = GenerateModuleGaussDistribution();
-                K = Core1.IsBusy || Core2.IsBusy;
-                HandleTask(sigma);
+                ServerLog serverLog = new ServerLog();
+                serverLog.Type = (Type == true ? "2" : "1");
 
-                serverLog.Sigma = sigma.ToString();
-                serverLog.T2 = T2.ToString();
-                serverLog.Description = "Окончание обслуживания";
-            }
-            else // Приход задачи
-            {
-                double tau = GenerateUniformDistribution();
-                T1 += tau;
-                I++;
-
-                if (I == 0)
+                if (Type) // Окончание обслуживания
                 {
-                    K = true;
+                    double sigma = GenerateModuleGaussDistribution();
+                    K = Core1.IsBusy || Core2.IsBusy;
+                    HandleTask(sigma);
+
+                    serverLog.Sigma = sigma.ToString();
+                    serverLog.T2 = T2.ToString();
+                    serverLog.Description = "Окончание обслуживания";
                 }
-                else
+                else // Приход задачи
                 {
-                    Task newTask = new Task(I, T1, NextTau, null, null);
-                    InStream.Add(newTask);
+                    double tau = GenerateUniformDistribution();
+                    T1 += tau;
+                    I++;
 
-                    if (K)
+                    if (I == 0)
                     {
-                        if(!DelegateTaskToCore(newTask))
-                            if (L <= Q_MAX)
-                            {
-                                Q.Add(newTask);
-                                L += 1;
-                                QueueLengthCounts[L]++;
-                            }
+                        K = true;
                     }
                     else
                     {
-                        Core1.Task = newTask;
-                        Core1.IsBusy = true;
-                        K = true;
+                        Task newTask = new Task(I, T1, NextTau, null, null, Poisson.Sample(_random, Lambda), 0);
+                        InStream.Add(newTask);
+
+                        if (K)
+                        {
+                            if (!DelegateTaskToCore(newTask))
+                                if (L <= Q_MAX)
+                                {
+                                    Q.Add(newTask);
+                                    L += 1;
+                                    QueueLengthCounts[L]++;
+                                }
+                                else // Увеличиваем k на 1 и передаем соседнему серверу
+                                {
+                                    newTask.K_Fact++;
+
+                                    if (newTask.K_Fact != newTask.K_Plan)
+                                        TransferTaskToNeighborServer(newTask);
+                                    else
+                                        FinalOutStream.Add(newTask);
+                                }
+                        }
+                        else
+                        {
+                            Core1.Task = newTask;
+                            Core1.IsBusy = true;
+                            K = true;
+                        }
                     }
+
+                    NextTau = tau;
+
+                    serverLog.Tau = tau.ToString();
+                    serverLog.T1 = T1.ToString();
+                    serverLog.Description = "Приход задачи";
                 }
 
-                NextTau = tau;
+                Type = T1 > T2;
+                TS = Math.Min(T1, T2);
 
-                serverLog.Tau = tau.ToString();
-                serverLog.T1 = T1.ToString();
-                serverLog.Description = "Приход задачи";
+                serverLog.K = (K == true ? "1" : "0");
+                serverLog.L = L.ToString();
+                serverLog.TS = TS.ToString();
+
+                ServerLogs.Add(serverLog);
+
+                if (TS >= TSMax)
+                    IsShutdown = true;
             }
+        }
 
-            Type = T1 > T2;
-            TS = Math.Min(T1, T2);
+        //public void RunServer()
+        //{
+        //    T1 = GenerateUniformDistribution();
+        //    double initSigma = GenerateModuleGaussDistribution();
+        //    NextSigma = initSigma;
+        //    T2 = T1 + initSigma;
+        //    TS = T1;
+        //    Core1.Task = new Task(0, T1, T1, initSigma, T2);
+        //    Core1.IsBusy = true;
+        //    InStream.Add(Core1.Task);
 
-            serverLog.K = (K == true ? "1" : "0");
-            serverLog.L = L.ToString();
-            serverLog.TS = TS.ToString();
+        //    ServerLog serverLog = new ServerLog((Type == true ? "2" : "1"), T1.ToString(), initSigma.ToString(), T1.ToString(), T2.ToString(), (K == true ? "1" : "0"), L.ToString(), TS.ToString(), "Инициализация");
+        //    ServerLogs.Add(serverLog);
 
-            ServerLogs.Add(serverLog);
+        //    while(TS < TSMax)
+        //    {
+        //        ProcessTimeStep();
+        //    }
+        //}
+
+        //public void ProcessTimeStep()
+        //{
+        //    ServerLog serverLog = new ServerLog();
+        //    serverLog.Type = (Type == true ? "2" : "1");
+
+        //    if (Type) // Окончание обслуживания
+        //    {
+        //        double sigma = GenerateModuleGaussDistribution();
+        //        K = Core1.IsBusy || Core2.IsBusy;
+        //        HandleTask(sigma);
+
+        //        serverLog.Sigma = sigma.ToString();
+        //        serverLog.T2 = T2.ToString();
+        //        serverLog.Description = "Окончание обслуживания";
+        //    }
+        //    else // Приход задачи
+        //    {
+        //        double tau = GenerateUniformDistribution();
+        //        T1 += tau;
+        //        I++;
+
+        //        if (I == 0)
+        //        {
+        //            K = true;
+        //        }
+        //        else
+        //        {
+        //            Task newTask = new Task(I, T1, NextTau, null, null);
+        //            InStream.Add(newTask);
+
+        //            if (K)
+        //            {
+        //                if(!DelegateTaskToCore(newTask))
+        //                    if (L <= Q_MAX)
+        //                    {
+        //                        Q.Add(newTask);
+        //                        L += 1;
+        //                        QueueLengthCounts[L]++;
+        //                    }
+        //            }
+        //            else
+        //            {
+        //                Core1.Task = newTask;
+        //                Core1.IsBusy = true;
+        //                K = true;
+        //            }
+        //        }
+
+        //        NextTau = tau;
+
+        //        serverLog.Tau = tau.ToString();
+        //        serverLog.T1 = T1.ToString();
+        //        serverLog.Description = "Приход задачи";
+        //    }
+
+        //    Type = T1 > T2;
+        //    TS = Math.Min(T1, T2);
+
+        //    serverLog.K = (K == true ? "1" : "0");
+        //    serverLog.L = L.ToString();
+        //    serverLog.TS = TS.ToString();
+
+        //    ServerLogs.Add(serverLog);
+        //}
+
+        public void CalculateIntensity() // Проверить
+        {
+            Intensity = (double)InStream.Count / TS;
+            
+            //Intensity = 0.0;
+            //double probability = 1.0 / (double)NeighborServers.Count;
+
+            //foreach (Server item in NeighborServers)
+            //{
+            //    double temp = (double)item.InStream.Count / item.TS;
+            //    Intensity += temp * probability;
+            //}
+        }
+
+        public void TransferTaskToNeighborServer(Task task) // Проверить
+        {
+            Server chosenServer = NeighborServers.FirstOrDefault(f => f.Q.Count == NeighborServers.Min(ns => ns.Q.Count));
+
+            if (chosenServer != null)
+            {
+                if (!chosenServer.DelegateTaskToCore(task))
+                {
+                    if (chosenServer.L <= Q_MAX)
+                    {
+                        chosenServer.InStream.Add(task);
+                        chosenServer.Q.Add(task);
+                        chosenServer.L += 1;
+                        chosenServer.QueueLengthCounts[L]++;
+                    }
+                    else
+                    {
+                        task.K_Fact++;
+                        chosenServer.TransferTaskToNeighborServer(task);
+                    }
+                }
+            }
+            else
+                throw new Exception($"Не удалось передать задачу {task.I} от сервера {ServerID}");
         }
 
         public double GenerateUniformDistribution() => a + _random.NextDouble() * (b - a);
@@ -250,6 +407,13 @@ namespace ComputerNets1
             NextSigma = sigma;
             core.IsBusy = false;
             OutStream.Add(core.Task);
+
+            // Увеличиваем k на 1 и передаем соседнему серверу либо заканчиваем обслуживание задачи
+            core.Task.K_Fact++;
+            if (core.Task.K_Fact != core.Task.K_Plan)
+                TransferTaskToNeighborServer(core.Task);
+            else
+                FinalOutStream.Add(core.Task);
 
             if (L == 0)
             {
@@ -293,6 +457,10 @@ namespace ComputerNets1
     {
         public int I { get; set; }
 
+        public int K_Plan { get; set; }
+
+        public int K_Fact { get; set; }
+
         public double T { get; set; }
 
         public double Tau { get; set; }
@@ -304,19 +472,23 @@ namespace ComputerNets1
         public Task()
         {
             I = 0;
+            K_Plan = 0;
+            K_Fact = 0;
             T = 0.0;
             Tau = 0.0;
             Sigma = null;
             Delta = null;
         }
 
-        public Task(int I, double T, double Tau, double? Sigma, double? Delta)
+        public Task(int I, double T, double Tau, double? Sigma, double? Delta, int K_Plan, int K_Fact)
         {
             this.I = I;
             this.T = T;
             this.Tau = Tau;
             this.Sigma = Sigma;
             this.Delta = Delta;
+            this.K_Plan = K_Plan;
+            this.K_Fact = K_Fact;
         }
     }
 
