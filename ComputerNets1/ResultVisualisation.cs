@@ -5,123 +5,239 @@ namespace ComputerNets1
     public class ResultVisualisation
     {
         private Form Form { get;set; }
-        private Chart QueueLengthChart { get; set; }
-        private Chart DeltaChart { get; set; }
 
-        private Dictionary<double, Series> LnSeries { get; set; }
+        private Dictionary<int, Dictionary<double, Series>> LnSeries { get; set; }
 
-        private Dictionary<double, Series> AOutXSeries { get; set; }
+        private Dictionary<int, Dictionary<double, Series>> AOutXSeries { get; set; }
+
+        public ServersNet Net { get; set; }
+
+        private TabControl TabControl3 { get; set; }
+
+        private TabControl TabControl4 { get; set; }
 
         public ResultVisualisation() 
         {
             Form = new Form();
-            LnSeries = new Dictionary<double, Series>();
-            AOutXSeries = new Dictionary<double, Series>();
         }
 
         public ResultVisualisation(Form Form) 
         {
             this.Form = Form;
 
-            LnSeries = new Dictionary<double, Series>();
-            AOutXSeries = new Dictionary<double, Series>();
+            LnSeries = new Dictionary<int, Dictionary<double, Series>>();
+            AOutXSeries = new Dictionary<int, Dictionary<double, Series>>();
 
-            QueueLengthChart = new Chart();
-            ChartArea queueLengthChartArea = new ChartArea();
-            QueueLengthChart.ChartAreas.Add(queueLengthChartArea);
-
-            DeltaChart = new Chart();
-            ChartArea deltaChartArea = new ChartArea();
-            DeltaChart.ChartAreas.Add(deltaChartArea);
-
-            QueueLengthChart.Dock = DockStyle.Fill;
-            DeltaChart.Dock = DockStyle.Fill;
-
-            TabPage queueLengthTabPage = this.Form.Controls.Find("tabPage2", true)[0] as TabPage;
-            TabPage deltaTabPage = this.Form.Controls.Find("tabPage3", true)[0] as TabPage;
-            queueLengthTabPage.Controls.Add(QueueLengthChart);
-            deltaTabPage.Controls.Add(DeltaChart);
+            TabControl3 = this.Form.Controls.Find("tabControl3", true)[0] as TabControl;
+            TabControl4 = this.Form.Controls.Find("tabControl4", true)[0] as TabControl;
         }
 
-        public void Visualize(Dictionary<int, int> queueLengthCounts, Dictionary<int, int> deltaCounts, double expectation)
+        public void Visualize(Dictionary<int, Dictionary<int, int>> queueLengthCounts,
+            Dictionary<int, Dictionary<int, int>> deltaCounts,
+            double expectation,
+            int n,
+            int prevN)
         {
-            Series QueueLengthSeries, DeltaSeries;
-            List<double> queueLengthProbabilities = CalculateQueueLengthProbabilities(queueLengthCounts);
-            List<double> deltaProbabilities = CalculateDeltaProbabilities(deltaCounts);
-            List<double> queueLengthCumulativeProbabilities = new List<double>();
-            List<double> deltaCumulativeProbabilities = new List<double>();
+            if (n != prevN)
+                VisualizeWithRedraw(queueLengthCounts, deltaCounts, expectation);
+            else
+                VisualizeWithoutRedraw(queueLengthCounts, deltaCounts, expectation);
+        }
 
-            if (!LnSeries.TryGetValue(expectation, out QueueLengthSeries))
+        private void VisualizeWithRedraw(Dictionary<int, Dictionary<int, int>> queueLengthCounts,
+            Dictionary<int, Dictionary<int, int>> deltaCounts,
+            double expectation)
+        {
+            Reset();
+            foreach (var server in Net.AllServers)
             {
+                LnSeries.Add(server.ServerID, new Dictionary<double, Series>());
+                AOutXSeries.Add(server.ServerID, new Dictionary<double, Series>());
+
+                Chart QueueLengthChart = new Chart();
+                QueueLengthChart.Name = "QueueLengthChart" + server.ServerID;
+                ChartArea queueLengthChartArea = new ChartArea();
+                QueueLengthChart.ChartAreas.Add(queueLengthChartArea);
+
+                Chart DeltaChart = new Chart();
+                DeltaChart.Name = "DeltaChart" + server.ServerID;
+                ChartArea deltaChartArea = new ChartArea();
+                DeltaChart.ChartAreas.Add(deltaChartArea);
+
+                QueueLengthChart.Dock = DockStyle.Fill;
+                DeltaChart.Dock = DockStyle.Fill;
+
+                TabPage queueLengthTabPage = CreateDefaultTabPage(QueueLengthChart, server, "tabPageLn" + server.ServerID);
+                TabPage deltaTabPage = CreateDefaultTabPage(DeltaChart, server, "tabPageAOutX" + server.ServerID);
+                queueLengthTabPage.Controls.Add(QueueLengthChart);
+                deltaTabPage.Controls.Add(DeltaChart);
+                TabControl3.Controls.Add(queueLengthTabPage);
+                TabControl4.Controls.Add(deltaTabPage);
+
+                Series QueueLengthSeries, DeltaSeries;
+                Dictionary<int, double> queueLengthProbabilities = CalculateQueueLengthProbabilities(queueLengthCounts[server.ServerID]);
+                Dictionary<int, double> deltaProbabilities = CalculateDeltaProbabilities(deltaCounts[server.ServerID]);
+                List<double> queueLengthCumulativeProbabilities = new List<double>();
+                List<double> deltaCumulativeProbabilities = new List<double>();
+
                 QueueLengthSeries = new Series();
                 QueueLengthSeries.Name = $"μ = {expectation}";
-                QueueLengthSeries.ChartType = SeriesChartType.Line;
+                QueueLengthSeries.ChartType = SeriesChartType.Spline;
                 QueueLengthChart.Series.Add(QueueLengthSeries);
                 QueueLengthChart.Legends.Add(expectation.ToString());
-                LnSeries.Add(expectation, QueueLengthSeries);
-            }
+                LnSeries[server.ServerID].Add(expectation, QueueLengthSeries);
 
-            if (!AOutXSeries.TryGetValue(expectation, out DeltaSeries))
-            {
                 DeltaSeries = new Series();
                 DeltaSeries.Name = $"μ = {expectation}";
-                DeltaSeries.ChartType = SeriesChartType.Line;
+                DeltaSeries.ChartType = SeriesChartType.Spline;
                 DeltaChart.Series.Add(DeltaSeries);
-                Legend legend = DeltaChart.Legends.Add(expectation.ToString());
-                AOutXSeries.Add(expectation, DeltaSeries);
-            }
+                DeltaChart.Legends.Add(expectation.ToString());
+                AOutXSeries[server.ServerID].Add(expectation, DeltaSeries);
 
-            queueLengthCumulativeProbabilities.Add(queueLengthProbabilities[0]);
-            deltaCumulativeProbabilities.Add(deltaProbabilities[0]);
+                queueLengthCumulativeProbabilities.Add(queueLengthProbabilities[0]);
+                deltaCumulativeProbabilities.Add(deltaProbabilities[0]);
 
-            for (int i = 1; i < queueLengthProbabilities.Count; i++)
-            {
-                queueLengthCumulativeProbabilities.Add(queueLengthCumulativeProbabilities[i - 1] + queueLengthProbabilities[i]);
-            }
+                for (int i = 1; i < queueLengthProbabilities.Count; i++)
+                {
+                    queueLengthCumulativeProbabilities.Add(queueLengthCumulativeProbabilities[i - 1] + queueLengthProbabilities[i]);
+                }
 
-            for (int i = 1; i < deltaProbabilities.Count; i++)
-            {
-                deltaCumulativeProbabilities.Add(deltaCumulativeProbabilities[i - 1] + deltaProbabilities[i]);
-            }
+                for (int i = 1; i < deltaProbabilities.Count; i++)
+                {
+                    deltaCumulativeProbabilities.Add(deltaCumulativeProbabilities[i - 1] + deltaProbabilities[i]);
+                }
 
-            QueueLengthSeries.Points.DataBindXY(queueLengthCounts.Keys, queueLengthCumulativeProbabilities);
-            DeltaSeries.Points.DataBindXY(deltaCounts.Keys, deltaCumulativeProbabilities);
+                for (int i = 0; i < queueLengthProbabilities.Count; i++)
+                {
+                    QueueLengthSeries.Points.AddXY(i, queueLengthCumulativeProbabilities[i]);
+                }
 
-            QueueLengthSeries.Points.Clear();
-            DeltaSeries.Points.Clear();
-
-            for (int i = 0; i < queueLengthProbabilities.Count; i++)
-            {
-                QueueLengthSeries.Points.AddXY(i, queueLengthCumulativeProbabilities[i]);
-            }
-
-            for (int i = 0; i < deltaProbabilities.Count; i++)
-            {
-                DeltaSeries.Points.AddXY(i, deltaCumulativeProbabilities[i]);
+                for (int i = 0; i < deltaProbabilities.Count; i++)
+                {
+                    DeltaSeries.Points.AddXY(i, deltaCumulativeProbabilities[i]);
+                }
             }
         }
 
-        public List<double> CalculateQueueLengthProbabilities(Dictionary<int, int> queueLengthCounts)
+        private void VisualizeWithoutRedraw(Dictionary<int, Dictionary<int, int>> queueLengthCounts,
+            Dictionary<int, Dictionary<int, int>> deltaCounts,
+            double expectation)
+        {
+            foreach (var server in Net.AllServers)
+            {
+                Chart QueueLengthChart = TabControl3.Controls.Find("QueueLengthChart" + server.ServerID, true).FirstOrDefault() as Chart;
+                Chart DeltaChart = TabControl4.Controls.Find("DeltaChart" + server.ServerID, true).FirstOrDefault() as Chart;
+                
+                Series QueueLengthSeries, DeltaSeries;
+                Dictionary<int, double> queueLengthProbabilities = CalculateQueueLengthProbabilities(queueLengthCounts[server.ServerID]);
+                Dictionary<int, double> deltaProbabilities = CalculateDeltaProbabilities(deltaCounts[server.ServerID]);
+                List<double> queueLengthCumulativeProbabilities = new List<double>();
+                List<double> deltaCumulativeProbabilities = new List<double>();
+
+                if (!LnSeries[server.ServerID].TryGetValue(expectation, out QueueLengthSeries))
+                {
+                    QueueLengthSeries = new Series();
+                    QueueLengthSeries.Name = $"μ = {expectation}";
+                    QueueLengthSeries.ChartType = SeriesChartType.Spline;
+                    QueueLengthChart.Series.Add(QueueLengthSeries);
+                    QueueLengthChart.Legends.Add(expectation.ToString());
+                    LnSeries[server.ServerID].Add(expectation, QueueLengthSeries);
+                }
+
+                if (!AOutXSeries[server.ServerID].TryGetValue(expectation, out DeltaSeries))
+                {
+                    DeltaSeries = new Series();
+                    DeltaSeries.Name = $"μ = {expectation}";
+                    DeltaSeries.ChartType = SeriesChartType.Spline;
+                    DeltaChart.Series.Add(DeltaSeries);
+                    DeltaChart.Legends.Add(expectation.ToString());
+                    AOutXSeries[server.ServerID].Add(expectation, DeltaSeries);
+                }
+
+                queueLengthCumulativeProbabilities.Add(queueLengthProbabilities[0]);
+                deltaCumulativeProbabilities.Add(deltaProbabilities[0]);
+
+                for (int i = 1; i < queueLengthProbabilities.Count; i++)
+                {
+                    queueLengthCumulativeProbabilities.Add(queueLengthCumulativeProbabilities[i - 1] + queueLengthProbabilities[i]);
+                }
+
+                for (int i = 1; i < deltaProbabilities.Count; i++)
+                {
+                    deltaCumulativeProbabilities.Add(deltaCumulativeProbabilities[i - 1] + deltaProbabilities[i]);
+                }
+
+                for (int i = 0; i < queueLengthProbabilities.Count; i++)
+                {
+                    QueueLengthSeries.Points.AddXY(i, queueLengthCumulativeProbabilities[i]);
+                }
+
+                for (int i = 0; i < deltaProbabilities.Count; i++)
+                {
+                    DeltaSeries.Points.AddXY(i, deltaCumulativeProbabilities[i]);
+                }
+            }
+        }
+
+        private void Reset()
+        {
+            foreach (Dictionary<double, Series> item in LnSeries.Values)
+                item.Clear();
+
+            LnSeries.Clear();
+
+            foreach (Dictionary<double, Series> item in AOutXSeries.Values)
+                item.Clear();
+
+            AOutXSeries.Clear();
+
+            TabControl3.Controls.Clear();
+            TabControl4.Controls.Clear();
+        }
+
+        private TabPage CreateDefaultTabPage(Control ctrlToAdd, Server server, string tabName)
+        {
+            TabPage tabPage1 = new TabPage();
+
+            tabPage1.BackColor = SystemColors.Control;
+            tabPage1.Controls.Add(ctrlToAdd);
+            tabPage1.Location = new Point(4, 29);
+            tabPage1.Name = tabName;
+            tabPage1.Padding = new Padding(3);
+            tabPage1.Size = new Size(1428, 383);
+            tabPage1.TabIndex = 0;
+            tabPage1.Text = "Сервер " + server.ServerID;
+
+            return tabPage1;
+        }
+
+        public Dictionary<int, double> CalculateQueueLengthProbabilities(Dictionary<int, int> queueLengthCounts)
         {
             int countSum = queueLengthCounts.Values.Sum();
-            List<double> probabilities = new List<double>();
+            Dictionary<int, double> probabilities = new Dictionary<int, double>();
 
-            for(int i = 0; i < queueLengthCounts.Keys.Count; i++)
+            for(int i = queueLengthCounts.Keys.Min(); i < queueLengthCounts.Keys.Max() + 1; i++)
             {
-                probabilities.Add((double)queueLengthCounts[i] / (double)countSum);
+                if (!queueLengthCounts.ContainsKey(i))
+                    queueLengthCounts.Add(i, 0);
+
+                probabilities.Add(i, (double)queueLengthCounts[i] / (double)countSum);
             }
 
             return probabilities;
         }
 
-        public List<double> CalculateDeltaProbabilities(Dictionary<int, int> deltaCounts)
+        public Dictionary<int, double> CalculateDeltaProbabilities(Dictionary<int, int> deltaCounts)
         {
             int countSum = deltaCounts.Values.Sum();
-            List<double> probabilities = new List<double>();
+            Dictionary<int, double> probabilities = new Dictionary<int, double>();
 
-            for (int i = 0; i < deltaCounts.Keys.Count; i++)
+            for (int i = deltaCounts.Keys.Min(); i < deltaCounts.Keys.Max() + 1; i++)
             {
-                probabilities.Add((double)deltaCounts[i] / (double)countSum);
+                if (!deltaCounts.ContainsKey(i))
+                    deltaCounts.Add(i, 0);
+
+                probabilities.Add(i, (double)deltaCounts[i] / (double)countSum);
             }
 
             return probabilities;

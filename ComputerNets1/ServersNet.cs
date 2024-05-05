@@ -234,36 +234,27 @@ namespace ComputerNets1
                 throw new ArgumentException("Некорректный x");
         }
 
-        // Поиск кратчайшего пути с помощью алгоритма Дейкстры
         public int[] Dijkstra(int src)
         {
-            int[] dist = new int[N]; // Массив для хранения кратчайших расстояний
+            int[] dist = new int[N];
 
-            // Инициализация расстояний как "бесконечность"
             for (int i = 0; i < N; ++i)
                 dist[i] = int.MaxValue;
 
-            // Установка расстояния от исходной вершины до самой себя как 0
             dist[src] = 0;
 
-            // Создание минимальной кучи (priority queue)
             var pq = new SortedSet<(int, int)>();
             pq.Add((0, src));
 
-            // Пока очередь не пуста
             while (pq.Count > 0)
             {
-                // Извлечение вершины с минимальным расстоянием
                 var (_, u) = pq.Min;
                 pq.Remove(pq.Min);
 
-                // Обновление расстояний до смежных вершин
                 foreach (var (v, w) in adj[u])
                 {
-                    // Если найден более короткий путь
                     if (dist[v] > dist[u] + w)
                     {
-                        // Обновление расстояния
                         pq.Remove((dist[v], v));
                         dist[v] = dist[u] + w;
                         pq.Add((dist[v], v));
