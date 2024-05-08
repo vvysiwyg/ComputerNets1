@@ -246,14 +246,20 @@ namespace ComputerNets1
             }
         }
 
-        public void CalculateIntensity() // Проверить
+        public void CalculateIntensity()
         {
             Intensity = (double)InStream.Count / TS;
         }
 
-        public void TransferTaskToNeighborServer(Task task) // Проверить
+        public void TransferTaskToNeighborServer(Task task)
         {
-            Server chosenServer = NeighborServers.FirstOrDefault(f => f.Q.Count == NeighborServers.Min(ns => ns.Q.Count));
+            List<Server> chosenServers = NeighborServers.FindAll(f => f.Q.Count == NeighborServers.Min(ns => ns.Q.Count));
+            int chosenServerIndex = 0;
+
+            if(chosenServers.Count > 1)
+                chosenServerIndex = _random.Next(0, chosenServers.Count);
+
+            Server chosenServer = chosenServers[chosenServerIndex];
 
             if (chosenServer != null)
             {

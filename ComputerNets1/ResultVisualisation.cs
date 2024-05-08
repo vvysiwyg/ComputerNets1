@@ -81,14 +81,14 @@ namespace ComputerNets1
                 List<double> deltaCumulativeProbabilities = new List<double>();
 
                 QueueLengthSeries = new Series();
-                QueueLengthSeries.Name = $"μ = {expectation}";
+                QueueLengthSeries.Name = $"μ = {expectation}, интенсивность = {server.Intensity.ToString("f")}";
                 QueueLengthSeries.ChartType = SeriesChartType.Spline;
                 QueueLengthChart.Series.Add(QueueLengthSeries);
                 QueueLengthChart.Legends.Add(expectation.ToString());
                 LnSeries[server.ServerID].Add(expectation, QueueLengthSeries);
 
                 DeltaSeries = new Series();
-                DeltaSeries.Name = $"μ = {expectation}";
+                DeltaSeries.Name = $"μ = {expectation}, интенсивность = {server.Intensity.ToString("f")}";
                 DeltaSeries.ChartType = SeriesChartType.Spline;
                 DeltaChart.Series.Add(DeltaSeries);
                 DeltaChart.Legends.Add(expectation.ToString());
@@ -137,7 +137,7 @@ namespace ComputerNets1
                 if (!LnSeries[server.ServerID].TryGetValue(expectation, out QueueLengthSeries))
                 {
                     QueueLengthSeries = new Series();
-                    QueueLengthSeries.Name = $"μ = {expectation}";
+                    QueueLengthSeries.Name = $"μ = {expectation}, интенсивность = {server.Intensity.ToString("f")}";
                     QueueLengthSeries.ChartType = SeriesChartType.Spline;
                     QueueLengthChart.Series.Add(QueueLengthSeries);
                     QueueLengthChart.Legends.Add(expectation.ToString());
@@ -147,7 +147,7 @@ namespace ComputerNets1
                 if (!AOutXSeries[server.ServerID].TryGetValue(expectation, out DeltaSeries))
                 {
                     DeltaSeries = new Series();
-                    DeltaSeries.Name = $"μ = {expectation}";
+                    DeltaSeries.Name = $"μ = {expectation}, интенсивность = {server.Intensity.ToString("f")}";
                     DeltaSeries.ChartType = SeriesChartType.Spline;
                     DeltaChart.Series.Add(DeltaSeries);
                     DeltaChart.Legends.Add(expectation.ToString());

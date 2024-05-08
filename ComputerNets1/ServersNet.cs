@@ -1,11 +1,4 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Reflection;
-using System.Text;
-using System.Threading.Tasks;
-
-namespace ComputerNets1
+﻿namespace ComputerNets1
 {
     public class ServersNet
     {
@@ -60,7 +53,6 @@ namespace ComputerNets1
         {
             bool isCentralServersShutdowned = true, isPeripheralServersShutdowned = true;
 
-            isPeripheralServersShutdowned = !PeripheralServers.Any(all => all.Value.Find(f => f.IsShutdown == false) != null);  // Проверить вернут ли эта и нижняя функции одинаковые значения
             isPeripheralServersShutdowned = PeripheralServers.All(all => all.Value.All(a => a.IsShutdown));
             isCentralServersShutdowned = CentralServers.All(all => all.IsShutdown);
 
