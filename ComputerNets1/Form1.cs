@@ -93,14 +93,14 @@ namespace ComputerNets1
                         ServersNet net = new ServersNet(n, a, b, deviation, expectation, TSMax, lambda);
                         resultVisualisation.Net = net;
 
-                        //net.ServersGraph.CalculateDiameter();
-                        //net.ServersGraph.CalculatePathsCount();
-                        //string pathsCount = "";
+                        net.ServersGraph.CalculateDiameter();
+                        net.ServersGraph.CalculatePathsCount();
+                        string pathsCount = "";
 
-                        //foreach (var item in net.ServersGraph.PathsCount)
-                        //    pathsCount += $" {item.Key} - {item.Value}";
+                        foreach (var item in net.ServersGraph.PathsCount)
+                            pathsCount += $"{item.Key} - {item.Value}\n";
 
-                        //MessageBox.Show($"Эксперимент {i}: диаметр = {net.ServersGraph.Diameter}, средняя длина пути = {net.ServersGraph.GetAveragePathLength()} узлов, распределение длин путей: {pathsCount}");
+                        MessageBox.Show($"Диаметр = {net.ServersGraph.Diameter}\nСредняя длина пути = {net.ServersGraph.GetAveragePathLength()}\nРаспределение длин путей:\n{pathsCount}");
 
                         do
                         {

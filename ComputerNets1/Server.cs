@@ -1,5 +1,4 @@
-﻿using MathNet.Numerics;
-using MathNet.Numerics.Distributions;
+﻿using MathNet.Numerics.Distributions;
 
 namespace ComputerNets1
 {

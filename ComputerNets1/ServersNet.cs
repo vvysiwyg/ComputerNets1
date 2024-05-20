@@ -211,7 +211,15 @@
         public double GetAveragePathLength()
         {
             if (PathsCount.Count > 0)
-                return PathsCount.Keys.Average();
+            {
+                double expect = 0.0, sum = PathsCount.Values.Sum();
+                foreach(var item in PathsCount)
+                {
+                    expect += (double)item.Key * (double)item.Value / sum;
+                }
+                return expect;
+                // return PathsCount.Keys.Average();
+            }
             else
                 return -1.0;
         }
